@@ -31,8 +31,9 @@ model Category {
   parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children  Category[] @relation("CategoryHierarchy")
   
-  products  Product[]
-  blogPosts BlogPost[]
+  products        Product[]
+  blogPosts       BlogPost[]
+  pinterestBoards PinterestBoard[]
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -54,6 +55,7 @@ model Product {
   categoryId  String
   category    Category       @relation(fields: [categoryId], references: [id])
   images      ProductImage[]
+  pinLogs     PinLog[]
   
   // Flexibility field mapped to generic JSONB in postgres
   rawData     Json?          @default("{}") @map("raw_data") @db.JsonB
@@ -131,4 +133,72 @@ model BlogPost {
   @@index([status])
   @@index([publishedAt])
   @@index([categoryId])
+}
+
+// ── Pinterest Integration ──
+
+model PinterestAccount {
+  id            String   @id @default(cuid())
+  username      String
+  accessToken   String   @db.Text
+  refreshToken  String   @db.Text
+  tokenExpiry   DateTime
+  scope         String   @default("pins:read,pins:write,boards:read,boards:write")
+
+  boards        PinterestBoard[]
+  pinLogs       PinLog[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PinterestBoard {
+  id              String   @id @default(cuid())
+  boardId         String   @unique
+  name            String
+  description     String?
+  imageUrl        String?
+
+  categoryId      String?
+  category        Category?  @relation(fields: [categoryId], references: [id])
+
+  accountId       String
+  account         PinterestAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  pinLogs         PinLog[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([accountId])
+}
+
+model PinLog {
+  id              String   @id @default(cuid())
+  pinId           String?
+  status          String   @default("PENDING")
+  errorMessage    String?  @db.Text
+  scheduledAt     DateTime?                   // For drip-feed scheduling
+
+  productId       String?
+  product         Product?  @relation(fields: [productId], references: [id])
+  blogPostId      String?
+  imageUrl        String
+  title           String
+  description     String?  @db.Text
+  destinationUrl  String
+
+  boardId         String
+  board           PinterestBoard @relation(fields: [boardId], references: [id])
+  accountId       String
+  account         PinterestAccount @relation(fields: [accountId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([productId])
+  @@index([boardId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@unique([imageUrl, boardId])
 }

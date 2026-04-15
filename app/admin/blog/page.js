@@ -31,6 +31,21 @@ function generateSlug(text) {
     .trim();
 }
 
+async function getUniqueSlug(baseSlug, existingId = null) {
+  let slug = baseSlug || 'untitled';
+  let counter = 1;
+  while (true) {
+    const existing = await prisma.blogPost.findFirst({
+      where: { 
+        slug,
+        id: existingId ? { not: existingId } : undefined
+      }
+    });
+    if (!existing) return slug;
+    slug = `${baseSlug}-${counter++}`;
+  }
+}
+
 // ── Server Actions ──
 
 async function createPost(formData) {
@@ -44,8 +59,9 @@ async function createPost(formData) {
   const categoryId = formData.get('categoryId') || '';
   const metaTitle = formData.get('metaTitle') || '';
   const metaDescription = formData.get('metaDescription') || '';
+  const rawSlug = formData.get('slug') || generateSlug(title);
 
-  const slug = generateSlug(title) + '-' + Date.now().toString(36);
+  const slug = await getUniqueSlug(rawSlug);
 
   await prisma.blogPost.create({
     data: {
@@ -77,13 +93,15 @@ async function updatePost(formData) {
   const categoryId = formData.get('categoryId') || '';
   const metaTitle = formData.get('metaTitle') || '';
   const metaDescription = formData.get('metaDescription') || '';
+  const rawSlug = formData.get('slug') || generateSlug(title);
 
   const existing = await prisma.blogPost.findUnique({ where: { id } });
+  const slug = await getUniqueSlug(rawSlug, id);
 
   await prisma.blogPost.update({
     where: { id },
     data: {
-      title, content,
+      title, slug, content,
       excerpt: excerpt || null,
       coverImage: coverImage || null,
       status, author,

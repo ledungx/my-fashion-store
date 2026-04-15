@@ -28,6 +28,7 @@ export default async function AdminLayout({ children }) {
                     <Link href="/admin/products" style={{ color: '#ccc', textDecoration: 'none', fontWeight: '600' }}>Product Directory</Link>
                     <Link href="/admin/menus" style={{ color: '#ccc', textDecoration: 'none', fontWeight: '600' }}>Header & Footers</Link>
                     <Link href="/admin/blog" style={{ color: '#ccc', textDecoration: 'none', fontWeight: '600' }}>Blog Manager</Link>
+                    <Link href="/admin/pinterest" style={{ color: '#E60023', textDecoration: 'none', fontWeight: '600' }}>📌 Pinterest</Link>
                 </nav>
                 <div style={{ marginTop: 'auto' }}>
                     <form action={async () => {
