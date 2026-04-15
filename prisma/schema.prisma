@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  products  Product[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([slug])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  
+  // Support for nested categories
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  
+  products  Product[]
+  blogPosts BlogPost[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model Product {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  price       Decimal        @db.Decimal(10, 2)
+  
+  // Relations
+  brandId     String
+  brand       Brand          @relation(fields: [brandId], references: [id])
+  categoryId  String
+  category    Category       @relation(fields: [categoryId], references: [id])
+  images      ProductImage[]
+  
+  // Flexibility field mapped to generic JSONB in postgres
+  rawData     Json?          @default("{}") @map("raw_data") @db.JsonB
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Composite Index for fast lookups (slug, price, categoryId)
+  @@index([slug, price, categoryId]) 
+  // Additional index for filtering
+  @@index([brandId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  url       String
+  altText   String?
+  isPrimary Boolean  @default(false)
+  
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model MenuItem {
+  id        String   @id @default(cuid())
+  label     String
+  url       String
+  position  String   // 'HEADER' or 'FOOTER'
+  order     Int      @default(0)
+  isMegaMenu Boolean @default(false)
+  itemType  String   @default("LINK")  // "LINK" = text column, "IMAGE" = image card
+  imageUrl  String?                    // used when itemType = "IMAGE"
+  columns   Int      @default(0)       // 0 = auto, N = force N columns in mega menu text area
+
+  // Submenu Hierarchy Maps
+  parentId  String?
+  parent    MenuItem?  @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children  MenuItem[] @relation("MenuHierarchy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([position])
+  @@index([parentId])
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text        // HTML content from rich text editor
+  excerpt     String?  @db.Text        // Short summary for listing cards
+  coverImage  String?                  // URL to featured/hero image
+  status      String   @default("DRAFT") // "DRAFT" or "PUBLISHED"
+  author      String   @default("Admin")
+  
+  // Category relation (reuse product categories)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  
+  // SEO fields
+  metaTitle       String?
+  metaDescription String? @db.Text
+
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([categoryId])
+}
