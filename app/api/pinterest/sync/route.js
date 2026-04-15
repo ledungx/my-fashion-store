@@ -19,8 +19,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const SITE_DOMAIN = process.env.SITE_DOMAIN || 'https://myfashionstore.com';
-const PINS_PER_DAY = 10; // Drip-feed: max pins scheduled per day
-const PIN_INTERVAL_MINUTES = 30; // Space pins 30 minutes apart
+const PINS_PER_BATCH = parseInt(process.env.PINTEREST_PINS_PER_BATCH || '1', 10);
+const PIN_INTERVAL_MINUTES = parseInt(process.env.PINTEREST_PIN_INTERVAL_MINUTES || '180', 10);
 
 // POST: Generate pin queue for all mapped boards (drip-feed)
 export async function POST(request) {
@@ -157,7 +157,7 @@ export async function PUT() {
       },
       include: { board: true },
       orderBy: { scheduledAt: 'asc' },
-      take: PINS_PER_DAY,
+      take: PINS_PER_BATCH,
     });
 
     let pinned = 0;

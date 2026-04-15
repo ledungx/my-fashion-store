@@ -14,7 +14,7 @@ export function getAuthUrl() {
     client_id: process.env.PINTEREST_APP_ID,
     redirect_uri: process.env.PINTEREST_REDIRECT_URI,
     response_type: 'code',
-    scope: 'pins:read,pins:write,boards:read,boards:write',
+    scope: 'user_accounts:read,pins:read,pins:write,boards:read,boards:write',
     state: 'pinterest_oauth_' + Date.now(),
   });
   return `${PINTEREST_OAUTH_BASE}/?${params.toString()}`;
@@ -95,7 +95,11 @@ export async function getUserInfo(accessToken) {
   const res = await fetch(`${PINTEREST_API_BASE}/user_account`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
-  if (!res.ok) throw new Error('Failed to get Pinterest user info');
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('Pinterest getUserInfo error:', res.status, errText);
+    throw new Error(`Failed to get Pinterest user info: ${res.status} ${errText}`);
+  }
   return res.json();
 }
 
