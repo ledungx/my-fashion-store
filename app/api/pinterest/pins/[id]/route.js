@@ -23,7 +23,7 @@ export async function PATCH(request, context) {
   // id here represents the PinLog ID
   const { id } = await context.params;
   try {
-    const { title, description, destinationUrl } = await request.json();
+    const { title, description, destinationUrl, scheduledAt } = await request.json();
 
     const pinLog = await prisma.pinLog.findUnique({ where: { id } });
     if (!pinLog) {
@@ -46,10 +46,15 @@ export async function PATCH(request, context) {
       });
     }
 
+    const dataToUpdate = { title, description, destinationUrl };
+    if (scheduledAt) {
+      dataToUpdate.scheduledAt = new Date(scheduledAt);
+    }
+
     // Update in DB
     const dbPinLog = await prisma.pinLog.update({
       where: { id },
-      data: { title, description, destinationUrl },
+      data: dataToUpdate,
     });
 
     return NextResponse.json({ success: true, pinLog: dbPinLog });

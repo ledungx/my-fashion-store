@@ -16,7 +16,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
 
   // Modals state
   const [boardModal, setBoardModal] = useState({ isOpen: false, isEdit: false, id: null, name: '', description: '' });
-  const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '' });
+  const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '', status: '', scheduledAt: '' });
   
   const showToast = (text, isError = false) => {
     setMessage(`${isError ? '❌' : '✅'} ${text}`);
@@ -144,7 +144,8 @@ export default function PinterestManager({ account, boards, categories, stats, r
         body: JSON.stringify({ 
           title: pinModal.title, 
           description: pinModal.description, 
-          destinationUrl: pinModal.destinationUrl 
+          destinationUrl: pinModal.destinationUrl,
+          scheduledAt: pinModal.scheduledAt 
         }),
       });
       const data = await res.json();
@@ -335,7 +336,11 @@ export default function PinterestManager({ account, boards, categories, stats, r
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <>
-                        <button onClick={() => setPinModal({ isOpen: true, id: pin.id, title: pin.title, description: pin.description, destinationUrl: pin.destinationUrl })} style={iconBtnStyle} title="Edit Pin">✎</button>
+                        <button onClick={() => {
+                          // Format date for datetime-local input
+                          const scheduledVal = pin.scheduledAt ? new Date(pin.scheduledAt).toISOString().slice(0, 16) : '';
+                          setPinModal({ isOpen: true, id: pin.id, title: pin.title, description: pin.description, destinationUrl: pin.destinationUrl, status: pin.status, scheduledAt: scheduledVal });
+                        }} style={iconBtnStyle} title="Edit Pin">✎</button>
                         <button onClick={() => handleDeletePin(pin.id)} style={{...iconBtnStyle, color: '#ef4444', marginLeft: '5px'}} title="Delete Pin">🗑</button>
                       </>
                     </td>
@@ -384,6 +389,17 @@ export default function PinterestManager({ account, boards, categories, stats, r
               <label>Link (URL)</label>
               <input type="text" value={pinModal.destinationUrl} onChange={e => setPinModal({...pinModal, destinationUrl: e.target.value})} style={inputStyle} />
             </div>
+            {pinModal.status !== 'PINNED' && (
+              <div style={formGroup}>
+                <label>Scheduled Post Time</label>
+                <input 
+                  type="datetime-local" 
+                  value={pinModal.scheduledAt} 
+                  onChange={e => setPinModal({...pinModal, scheduledAt: e.target.value})} 
+                  style={inputStyle} 
+                />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
               <button onClick={() => setPinModal({ isOpen: false })} style={secondaryBtnStyle}>Cancel</button>
               <button onClick={handleSavePin} style={primaryBtnStyle}>Update Pin</button>
