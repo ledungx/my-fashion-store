@@ -236,9 +236,12 @@ export async function PUT() {
   }
 }
 
-// GET: Get pin queue status
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = 20;
+
     const [total, pending, pinned, failed] = await Promise.all([
       prisma.pinLog.count(),
       prisma.pinLog.count({ where: { status: 'PENDING' } }),
@@ -248,11 +251,14 @@ export async function GET() {
 
     const recentPins = await prisma.pinLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       include: { board: true },
     });
 
-    return NextResponse.json({ total, pending, pinned, failed, recentPins });
+    const totalPages = Math.ceil(total / pageSize) || 1;
+
+    return NextResponse.json({ total, pending, pinned, failed, recentPins, totalPages });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

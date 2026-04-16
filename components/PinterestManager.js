@@ -14,6 +14,12 @@ export default function PinterestManager({ account, boards, categories, stats, r
   const [localStats, setLocalStats] = useState(stats);
   const [localPins, setLocalPins] = useState(recentPins);
 
+  // Layout state
+  const [activeTab, setActiveTab] = useState('pins'); // 'pins' or 'boards'
+  const [boardPage, setBoardPage] = useState(1);
+  const [pinPage, setPinPage] = useState(1);
+  const boardsPerPage = 10;
+
   // Settings state
   const [pinsPerBatch, setPinsPerBatch] = useState(account?.pinsPerBatch || 1);
   const [intervalMinutes, setIntervalMinutes] = useState(account?.intervalMinutes || 180);
@@ -152,11 +158,12 @@ export default function PinterestManager({ account, boards, categories, stats, r
     setIsProcessing(false);
   };
 
-  const refreshStats = async () => {
-    const statsRes = await fetch('/api/pinterest/sync');
+  const refreshStats = async (page = pinPage) => {
+    const statsRes = await fetch(`/api/pinterest/sync?page=${page}`);
     const statsData = await statsRes.json();
-    setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed });
+    setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed, totalPages: statsData.totalPages || 1 });
     setLocalPins(statsData.recentPins || []);
+    setPinPage(page);
   };
 
   // ── Pin CRUD ──
@@ -231,8 +238,26 @@ export default function PinterestManager({ account, boards, categories, stats, r
         )}
       </div>
 
-      {/* ── Section 2: Board Management ── */}
+      {/* ── Tabs ── */}
       {account && (
+        <div style={{ display: 'flex', gap: '20px', borderBottom: '2px solid #eee', marginBottom: '10px' }}>
+          <button 
+            onClick={() => setActiveTab('pins')} 
+            style={{ ...tabBtnStyle, borderBottom: activeTab === 'pins' ? '2px solid #111' : '2px solid transparent', color: activeTab === 'pins' ? '#111' : '#888' }}
+          >
+            Pin Management
+          </button>
+          <button 
+            onClick={() => setActiveTab('boards')} 
+            style={{ ...tabBtnStyle, borderBottom: activeTab === 'boards' ? '2px solid #111' : '2px solid transparent', color: activeTab === 'boards' ? '#111' : '#888' }}
+          >
+            Board Management
+          </button>
+        </div>
+      )}
+
+      {/* ── Section 2: Board Management ── */}
+      {account && activeTab === 'boards' && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ ...sectionTitle, margin: 0 }}>Board Management</h2>
@@ -263,7 +288,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
                 </tr>
               </thead>
               <tbody>
-                {localBoards.map(board => (
+                {localBoards.slice((boardPage - 1) * boardsPerPage, boardPage * boardsPerPage).map(board => (
                   <tr key={board.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -301,11 +326,22 @@ export default function PinterestManager({ account, boards, categories, stats, r
               </tbody>
             </table>
           )}
+          
+          {/* Boards Pagination */}
+          {localBoards.length > boardsPerPage && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
+              <button disabled={boardPage === 1} onClick={() => setBoardPage(p => p - 1)} style={secondaryBtnStyle}>Prev</button>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555' }}>
+                Page {boardPage} of {Math.ceil(localBoards.length / boardsPerPage)}
+              </span>
+              <button disabled={boardPage === Math.ceil(localBoards.length / boardsPerPage)} onClick={() => setBoardPage(p => p + 1)} style={secondaryBtnStyle}>Next</button>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Section 3: Pin Management ── */}
-      {account && (
+      {account && activeTab === 'pins' && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ ...sectionTitle, margin: 0 }}>Pin Management</h2>
@@ -410,6 +446,17 @@ export default function PinterestManager({ account, boards, categories, stats, r
                 ))}
               </tbody>
             </table>
+          )}
+          
+          {/* Pins Pagination */}
+          {localStats.totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
+              <button disabled={pinPage <= 1} onClick={() => refreshStats(pinPage - 1)} style={secondaryBtnStyle}>Prev</button>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555' }}>
+                Page {pinPage} of {localStats.totalPages}
+              </span>
+              <button disabled={pinPage >= localStats.totalPages} onClick={() => refreshStats(pinPage + 1)} style={secondaryBtnStyle}>Next</button>
+            </div>
           )}
         </div>
       )}
@@ -518,3 +565,4 @@ const modalOverlay = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
 const modalContent = { background: '#fff', padding: '30px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' };
 const formGroup = { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' };
 const inputStyle = { padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', fontFamily: 'inherit' };
+const tabBtnStyle = { background: 'none', border: 'none', padding: '12px 16px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', outline: 'none' };

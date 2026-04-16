@@ -42,7 +42,7 @@ export default async function AdminPinterestPage() {
 
   const recentPins = await prisma.pinLog.findMany({
     orderBy: { createdAt: 'desc' },
-    take: 30,
+    take: 20,
     include: { board: true },
   });
 
@@ -51,6 +51,7 @@ export default async function AdminPinterestPage() {
     pending: pinStats[1],
     pinned: pinStats[2],
     failed: pinStats[3],
+    totalPages: Math.ceil(pinStats[0] / 20) || 1,
   };
 
   return (
