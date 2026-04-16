@@ -14,6 +14,14 @@ export default function PinterestManager({ account, boards, categories, stats, r
   const [localStats, setLocalStats] = useState(stats);
   const [localPins, setLocalPins] = useState(recentPins);
 
+  // Modals state
+  const [boardModal, setBoardModal] = useState({ isOpen: false, isEdit: false, id: null, name: '', description: '' });
+  const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '' });
+  
+  const showToast = (text, isError = false) => {
+    setMessage(`${isError ? '❌' : '✅'} ${text}`);
+  };
+
   // ── Fetch boards from Pinterest ──
   const handleRefreshBoards = async () => {
     setIsRefreshing(true);
@@ -24,9 +32,9 @@ export default function PinterestManager({ account, boards, categories, stats, r
       if (data.error) throw new Error(data.error);
       setLocalBoards(data.boards);
       setMappings(data.boards.reduce((acc, b) => ({ ...acc, [b.id]: b.categoryId || '' }), {}));
-      setMessage('✅ Boards refreshed from Pinterest');
+      showToast('Boards refreshed from Pinterest');
     } catch (err) {
-      setMessage('❌ ' + err.message);
+      showToast(err.message, true);
     }
     setIsRefreshing(false);
   };
@@ -47,14 +55,49 @@ export default function PinterestManager({ account, boards, categories, stats, r
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage('✅ Mappings saved successfully');
+      showToast('Mappings saved successfully');
     } catch (err) {
-      setMessage('❌ ' + err.message);
+      showToast(err.message, true);
     }
     setIsSaving(false);
   };
 
-  // ── Queue pins (drip-feed) ──
+  // ── Board CRUD ──
+  const handleSaveBoard = async () => {
+    const isEdit = boardModal.isEdit;
+    const url = isEdit ? `/api/pinterest/boards/manage/${boardModal.id}` : `/api/pinterest/boards/manage`;
+    const method = isEdit ? 'PATCH' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: boardModal.name, description: boardModal.description }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast(`Board ${isEdit ? 'updated' : 'created'} successfully`);
+      setBoardModal({ isOpen: false });
+      handleRefreshBoards(); // Reload boards to reflect changes
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
+  const handleDeleteBoard = async (id) => {
+    if (!confirm('Are you sure you want to delete this board? It will be removed from Pinterest permanently.')) return;
+    try {
+      const res = await fetch(`/api/pinterest/boards/manage/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Board deleted successfully');
+      handleRefreshBoards();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
+  // ── Sync & Pin Processing ──
   const handleSync = async () => {
     setIsSyncing(true);
     setMessage('');
@@ -62,19 +105,14 @@ export default function PinterestManager({ account, boards, categories, stats, r
       const res = await fetch('/api/pinterest/sync', { method: 'POST' });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage(`✅ ${data.message}`);
-      // Refresh stats
-      const statsRes = await fetch('/api/pinterest/sync');
-      const statsData = await statsRes.json();
-      setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed });
-      setLocalPins(statsData.recentPins || []);
+      showToast(data.message);
+      refreshStats();
     } catch (err) {
-      setMessage('❌ ' + err.message);
+      showToast(err.message, true);
     }
     setIsSyncing(false);
   };
 
-  // ── Process due pins now ──
   const handleProcessNow = async () => {
     setIsProcessing(true);
     setMessage('');
@@ -82,17 +120,56 @@ export default function PinterestManager({ account, boards, categories, stats, r
       const res = await fetch('/api/pinterest/sync', { method: 'PUT' });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage(`✅ Processed ${data.processed} pins: ${data.pinned} pinned, ${data.failed} failed`);
-      // Refresh stats
-      const statsRes = await fetch('/api/pinterest/sync');
-      const statsData = await statsRes.json();
-      setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed });
-      setLocalPins(statsData.recentPins || []);
+      showToast(`Processed ${data.processed} pins: ${data.pinned} pinned, ${data.failed} failed`);
+      refreshStats();
     } catch (err) {
-      setMessage('❌ ' + err.message);
+      showToast(err.message, true);
     }
     setIsProcessing(false);
   };
+
+  const refreshStats = async () => {
+    const statsRes = await fetch('/api/pinterest/sync');
+    const statsData = await statsRes.json();
+    setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed });
+    setLocalPins(statsData.recentPins || []);
+  };
+
+  // ── Pin CRUD ──
+  const handleSavePin = async () => {
+    try {
+      const res = await fetch(`/api/pinterest/pins/${pinModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          title: pinModal.title, 
+          description: pinModal.description, 
+          destinationUrl: pinModal.destinationUrl 
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Pin updated successfully');
+      setPinModal({ isOpen: false });
+      refreshStats();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
+  const handleDeletePin = async (id) => {
+    if (!confirm('Are you sure you want to delete this pin from Pinterest?')) return;
+    try {
+      const res = await fetch(`/api/pinterest/pins/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Pin deleted successfully');
+      refreshStats();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -128,12 +205,15 @@ export default function PinterestManager({ account, boards, categories, stats, r
         )}
       </div>
 
-      {/* ── Section 2: Board ↔ Category Mapping ── */}
+      {/* ── Section 2: Board Management ── */}
       {account && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ ...sectionTitle, margin: 0 }}>Board → Category Mapping</h2>
+            <h2 style={{ ...sectionTitle, margin: 0 }}>Board Management</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setBoardModal({ isOpen: true, isEdit: false, id: null, name: '', description: '' })} style={secondaryBtnStyle}>
+                ✨ Create Board
+              </button>
               <button onClick={handleRefreshBoards} disabled={isRefreshing} style={secondaryBtnStyle}>
                 {isRefreshing ? '⏳ Refreshing...' : '🔄 Refresh Boards'}
               </button>
@@ -153,58 +233,56 @@ export default function PinterestManager({ account, boards, categories, stats, r
                 <tr style={{ borderBottom: '2px solid #f0f0f0', textAlign: 'left' }}>
                   <th style={thStyle}>Board</th>
                   <th style={{ ...thStyle, width: '250px' }}>Assign Category</th>
-                  <th style={{ ...thStyle, width: '100px', textAlign: 'center' }}>Products</th>
+                  <th style={{ ...thStyle, width: '120px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {localBoards.map(board => {
-                  const selectedCat = categories.find(c => c.id === mappings[board.id]);
-                  return (
-                    <tr key={board.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {board.imageUrl ? (
-                            <img src={board.imageUrl} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
-                          ) : (
-                            <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📌</div>
-                          )}
-                          <div>
-                            <div style={{ fontWeight: '600', color: '#111' }}>{board.name}</div>
-                            {board.description && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{board.description.substring(0, 60)}</div>}
-                          </div>
+                {localBoards.map(board => (
+                  <tr key={board.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {board.imageUrl ? (
+                          <img src={board.imageUrl} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>📌</div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: '600', color: '#111' }}>{board.name}</div>
+                          {board.description && <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>{board.description.substring(0, 60)}</div>}
                         </div>
-                      </td>
-                      <td style={tdStyle}>
-                        <select
-                          value={mappings[board.id] || ''}
-                          onChange={(e) => setMappings(prev => ({ ...prev, [board.id]: e.target.value }))}
-                          style={selectStyle}
-                        >
-                          <option value="">— Not mapped —</option>
-                          {categories.map(cat => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.name} ({cat._count?.products || 0} products)
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center', color: '#888' }}>
-                        {selectedCat ? (selectedCat._count?.products || 0) : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <select
+                        value={mappings[board.id] || ''}
+                        onChange={(e) => setMappings(prev => ({ ...prev, [board.id]: e.target.value }))}
+                        style={selectStyle}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      <button onClick={() => setBoardModal({ isOpen: true, isEdit: true, id: board.boardId, name: board.name, description: board.description || '' })} style={iconBtnStyle} title="Edit Board">✎</button>
+                      <button onClick={() => handleDeleteBoard(board.boardId)} style={{...iconBtnStyle, color: '#ef4444', marginLeft: '5px'}} title="Delete Board">🗑</button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
         </div>
       )}
 
-      {/* ── Section 3: Pin Queue & Controls ── */}
+      {/* ── Section 3: Pin Management ── */}
       {account && (
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ ...sectionTitle, margin: 0 }}>Pin Queue</h2>
+            <h2 style={{ ...sectionTitle, margin: 0 }}>Pin Management</h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={handleSync} disabled={isSyncing} style={secondaryBtnStyle}>
                 {isSyncing ? '⏳ Queuing...' : '📋 Queue All Pins'}
@@ -215,37 +293,21 @@ export default function PinterestManager({ account, boards, categories, stats, r
             </div>
           </div>
 
-          {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-            <StatCard label="Total" value={localStats.total} color="#111" />
+            <StatCard label="Total Queued" value={localStats.total} color="#111" />
             <StatCard label="Pending" value={localStats.pending} color="#f59e0b" />
             <StatCard label="Pinned" value={localStats.pinned} color="#10b981" />
             <StatCard label="Failed" value={localStats.failed} color="#ef4444" />
           </div>
 
-          {/* Progress bar */}
-          {localStats.total > 0 && (
-            <div style={{ background: '#f0f0f0', borderRadius: '8px', height: '8px', marginBottom: '24px', overflow: 'hidden' }}>
-              <div style={{ 
-                height: '100%', 
-                borderRadius: '8px',
-                background: 'linear-gradient(90deg, #10b981, #059669)',
-                width: `${(localStats.pinned / localStats.total) * 100}%`,
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-          )}
-
-          {/* Recent pins table */}
           {localPins.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #f0f0f0' }}>
                   <th style={thStyle}>Image</th>
-                  <th style={thStyle}>Title</th>
-                  <th style={{ ...thStyle, width: '120px' }}>Board</th>
-                  <th style={{ ...thStyle, width: '90px' }}>Status</th>
-                  <th style={{ ...thStyle, width: '130px' }}>Scheduled</th>
+                  <th style={thStyle}>Details</th>
+                  <th style={{ ...thStyle, width: '120px' }}>Status</th>
+                  <th style={{ ...thStyle, width: '100px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,15 +316,14 @@ export default function PinterestManager({ account, boards, categories, stats, r
                     <td style={{ ...tdStyle, width: '60px' }}>
                       <img src={pin.imageUrl} alt="" style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }} />
                     </td>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: '500', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
+                    <td style={{...tdStyle, maxWidth: '300px'}}>
+                      <div style={{ fontWeight: '500', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {pin.title}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
+                      <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {pin.destinationUrl}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontSize: '12px', color: '#888' }}>{pin.board?.name || '—'}</td>
                     <td style={tdStyle}>
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
@@ -272,14 +333,62 @@ export default function PinterestManager({ account, boards, categories, stats, r
                         {pin.status === 'PINNED' ? '✅ Pinned' : pin.status === 'FAILED' ? '❌ Failed' : '⏳ Pending'}
                       </span>
                     </td>
-                    <td style={{ ...tdStyle, fontSize: '12px', color: '#888' }}>
-                      {pin.scheduledAt ? new Date(pin.scheduledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      <>
+                        <button onClick={() => setPinModal({ isOpen: true, id: pin.id, title: pin.title, description: pin.description, destinationUrl: pin.destinationUrl })} style={iconBtnStyle} title="Edit Pin">✎</button>
+                        <button onClick={() => handleDeletePin(pin.id)} style={{...iconBtnStyle, color: '#ef4444', marginLeft: '5px'}} title="Delete Pin">🗑</button>
+                      </>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+      {boardModal.isOpen && (
+        <div style={modalOverlay}>
+          <div style={modalContent}>
+            <h3>{boardModal.isEdit ? 'Edit Board' : 'Create New Board'}</h3>
+            <div style={formGroup}>
+              <label>Board Name</label>
+              <input type="text" value={boardModal.name} onChange={e => setBoardModal({...boardModal, name: e.target.value})} style={inputStyle} placeholder="e.g. Summer Collection" />
+            </div>
+            <div style={formGroup}>
+              <label>Description</label>
+              <textarea value={boardModal.description} onChange={e => setBoardModal({...boardModal, description: e.target.value})} style={{...inputStyle, minHeight: '80px'}} placeholder="Optional description..." />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setBoardModal({ isOpen: false })} style={secondaryBtnStyle}>Cancel</button>
+              <button onClick={handleSaveBoard} style={primaryBtnStyle}>Save Board</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pinModal.isOpen && (
+        <div style={modalOverlay}>
+          <div style={modalContent}>
+            <h3>Edit Pin on Pinterest</h3>
+            <div style={formGroup}>
+              <label>Title</label>
+              <input type="text" value={pinModal.title} onChange={e => setPinModal({...pinModal, title: e.target.value})} style={inputStyle} />
+            </div>
+            <div style={formGroup}>
+              <label>Description</label>
+              <textarea value={pinModal.description} onChange={e => setPinModal({...pinModal, description: e.target.value})} style={{...inputStyle, minHeight: '80px'}} />
+            </div>
+            <div style={formGroup}>
+              <label>Link (URL)</label>
+              <input type="text" value={pinModal.destinationUrl} onChange={e => setPinModal({...pinModal, destinationUrl: e.target.value})} style={inputStyle} />
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setPinModal({ isOpen: false })} style={secondaryBtnStyle}>Cancel</button>
+              <button onClick={handleSavePin} style={primaryBtnStyle}>Update Pin</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -317,3 +426,8 @@ const tdStyle = { padding: '12px 16px', verticalAlign: 'middle' };
 const selectStyle = { width: '100%', padding: '8px 12px', border: '1.5px solid #e8e8e8', borderRadius: '6px', fontSize: '13px', background: '#fafafa', color: '#333', outline: 'none' };
 const primaryBtnStyle = { padding: '10px 20px', background: '#111', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', letterSpacing: '0.03em' };
 const secondaryBtnStyle = { padding: '10px 20px', background: '#fff', color: '#333', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' };
+const iconBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '4px' };
+const modalOverlay = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 };
+const modalContent = { background: '#fff', padding: '30px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' };
+const formGroup = { display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' };
+const inputStyle = { padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', outline: 'none', fontFamily: 'inherit' };
