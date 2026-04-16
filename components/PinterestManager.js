@@ -18,6 +18,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
   const [activeTab, setActiveTab] = useState('pins'); // 'pins' or 'boards'
   const [boardPage, setBoardPage] = useState(1);
   const [pinPage, setPinPage] = useState(1);
+  const [pinStatusFilter, setPinStatusFilter] = useState('');
   const boardsPerPage = 10;
 
   // Settings state
@@ -158,12 +159,13 @@ export default function PinterestManager({ account, boards, categories, stats, r
     setIsProcessing(false);
   };
 
-  const refreshStats = async (page = pinPage) => {
-    const statsRes = await fetch(`/api/pinterest/sync?page=${page}`);
+  const refreshStats = async (page = pinPage, status = pinStatusFilter) => {
+    const statsRes = await fetch(`/api/pinterest/sync?page=${page}&status=${status}`);
     const statsData = await statsRes.json();
-    setLocalStats({ total: statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed, totalPages: statsData.totalPages || 1 });
+    setLocalStats({ total: statsData.globalTotal || statsData.total, pending: statsData.pending, pinned: statsData.pinned, failed: statsData.failed, totalPages: statsData.totalPages || 1 });
     setLocalPins(statsData.recentPins || []);
     setPinPage(page);
+    setPinStatusFilter(status);
   };
 
   // ── Pin CRUD ──
@@ -329,12 +331,14 @@ export default function PinterestManager({ account, boards, categories, stats, r
           
           {/* Boards Pagination */}
           {localBoards.length > boardsPerPage && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
-              <button disabled={boardPage === 1} onClick={() => setBoardPage(p => p - 1)} style={secondaryBtnStyle}>Prev</button>
-              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+              <button disabled={boardPage === 1} onClick={() => setBoardPage(1)} style={secondaryBtnStyle}>&laquo; First</button>
+              <button disabled={boardPage === 1} onClick={() => setBoardPage(p => p - 1)} style={secondaryBtnStyle}>&lsaquo; Prev</button>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555', margin: '0 8px' }}>
                 Page {boardPage} of {Math.ceil(localBoards.length / boardsPerPage)}
               </span>
-              <button disabled={boardPage === Math.ceil(localBoards.length / boardsPerPage)} onClick={() => setBoardPage(p => p + 1)} style={secondaryBtnStyle}>Next</button>
+              <button disabled={boardPage === Math.ceil(localBoards.length / boardsPerPage)} onClick={() => setBoardPage(p => p + 1)} style={secondaryBtnStyle}>Next &rsaquo;</button>
+              <button disabled={boardPage === Math.ceil(localBoards.length / boardsPerPage)} onClick={() => setBoardPage(Math.ceil(localBoards.length / boardsPerPage))} style={secondaryBtnStyle}>Last &raquo;</button>
             </div>
           )}
         </div>
@@ -384,11 +388,27 @@ export default function PinterestManager({ account, boards, categories, stats, r
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-            <StatCard label="Total Queued" value={localStats.total} color="#111" />
-            <StatCard label="Pending" value={localStats.pending} color="#f59e0b" />
-            <StatCard label="Pinned" value={localStats.pinned} color="#10b981" />
-            <StatCard label="Failed" value={localStats.failed} color="#ef4444" />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
+              <StatCard label="Total Queued" value={localStats.total} color="#111" />
+              <StatCard label="Pending" value={localStats.pending} color="#f59e0b" />
+              <StatCard label="Pinned" value={localStats.pinned} color="#10b981" />
+              <StatCard label="Failed" value={localStats.failed} color="#ef4444" />
+            </div>
+            
+            <div style={{ marginLeft: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: '#555' }}>Filter:</span>
+              <select 
+                value={pinStatusFilter} 
+                onChange={(e) => refreshStats(1, e.target.value)} 
+                style={{ ...selectStyle, width: '140px', background: '#fff' }}
+              >
+                <option value="">All Statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="PINNED">Pinned</option>
+                <option value="FAILED">Failed</option>
+              </select>
+            </div>
           </div>
 
           {localPins.length > 0 && (
@@ -450,12 +470,14 @@ export default function PinterestManager({ account, boards, categories, stats, r
           
           {/* Pins Pagination */}
           {localStats.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
-              <button disabled={pinPage <= 1} onClick={() => refreshStats(pinPage - 1)} style={secondaryBtnStyle}>Prev</button>
-              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginTop: '20px' }}>
+              <button disabled={pinPage <= 1} onClick={() => refreshStats(1)} style={secondaryBtnStyle}>&laquo; First</button>
+              <button disabled={pinPage <= 1} onClick={() => refreshStats(pinPage - 1)} style={secondaryBtnStyle}>&lsaquo; Prev</button>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#555', margin: '0 8px' }}>
                 Page {pinPage} of {localStats.totalPages}
               </span>
-              <button disabled={pinPage >= localStats.totalPages} onClick={() => refreshStats(pinPage + 1)} style={secondaryBtnStyle}>Next</button>
+              <button disabled={pinPage >= localStats.totalPages} onClick={() => refreshStats(pinPage + 1)} style={secondaryBtnStyle}>Next &rsaquo;</button>
+              <button disabled={pinPage >= localStats.totalPages} onClick={() => refreshStats(localStats.totalPages)} style={secondaryBtnStyle}>Last &raquo;</button>
             </div>
           )}
         </div>
@@ -545,7 +567,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
 
 function StatCard({ label, value, color }) {
   return (
-    <div style={{ background: '#fafafa', borderRadius: '12px', padding: '20px', textAlign: 'center', border: '1px solid #f0f0f0' }}>
+    <div style={{ flex: 1, background: '#fafafa', borderRadius: '12px', padding: '20px', textAlign: 'center', border: '1px solid #f0f0f0' }}>
       <div style={{ fontSize: '28px', fontWeight: '800', color }}>{value}</div>
       <div style={{ fontSize: '12px', color: '#888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>{label}</div>
     </div>

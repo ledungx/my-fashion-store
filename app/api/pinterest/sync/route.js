@@ -240,9 +240,16 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
+    const statusParam = searchParams.get('status') || '';
     const pageSize = 20;
 
-    const [total, pending, pinned, failed] = await Promise.all([
+    const whereClause = {};
+    if (statusParam && ['PENDING', 'PINNED', 'FAILED'].includes(statusParam)) {
+      whereClause.status = statusParam;
+    }
+
+    const [filteredCount, globalTotal, pending, pinned, failed] = await Promise.all([
+      prisma.pinLog.count({ where: whereClause }),
       prisma.pinLog.count(),
       prisma.pinLog.count({ where: { status: 'PENDING' } }),
       prisma.pinLog.count({ where: { status: 'PINNED' } }),
@@ -250,15 +257,16 @@ export async function GET(request) {
     ]);
 
     const recentPins = await prisma.pinLog.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { board: true },
     });
 
-    const totalPages = Math.ceil(total / pageSize) || 1;
+    const totalPages = Math.ceil(filteredCount / pageSize) || 1;
 
-    return NextResponse.json({ total, pending, pinned, failed, recentPins, totalPages });
+    return NextResponse.json({ globalTotal, pending, pinned, failed, recentPins, totalPages });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
