@@ -18,17 +18,16 @@ if (process.env.NODE_ENV === 'production') {
   prisma = global.prisma;
 }
 
-const SITE_DOMAIN = process.env.SITE_DOMAIN || 'https://myfashionstore.com';
-const PINS_PER_BATCH = parseInt(process.env.PINTEREST_PINS_PER_BATCH || '1', 10);
-const PIN_INTERVAL_MINUTES = parseInt(process.env.PINTEREST_PIN_INTERVAL_MINUTES || '180', 10);
-
-// POST: Generate pin queue for all mapped boards (drip-feed)
+// POST: Generate or reset pin queue for all mapped boards (drip-feed)
 export async function POST(request) {
   try {
     const account = await prisma.pinterestAccount.findFirst();
     if (!account) {
       return NextResponse.json({ error: 'No Pinterest account connected' }, { status: 401 });
     }
+
+    const SITE_DOMAIN = process.env.SITE_DOMAIN || 'https://myfashionstore.com';
+    const PIN_INTERVAL_MINUTES = account.intervalMinutes || 180;
 
     // Get all boards with category mappings
     const boards = await prisma.pinterestBoard.findMany({
@@ -65,11 +64,25 @@ export async function POST(request) {
           });
 
           if (existing) {
-            totalSkipped++;
-            continue;
+            if (existing.status === 'PINNED') {
+              totalSkipped++;
+              continue;
+            } else {
+              // Reset schedule for unpinned pins
+              await prisma.pinLog.update({
+                where: { id: existing.id },
+                data: {
+                  status: 'PENDING',
+                  scheduledAt: new Date(scheduleTime),
+                }
+              });
+              totalQueued++;
+              scheduleTime = new Date(scheduleTime.getTime() + PIN_INTERVAL_MINUTES * 60 * 1000);
+              continue;
+            }
           }
 
-          // Schedule this pin
+          // Schedule this new pin
           await prisma.pinLog.create({
             data: {
               status: 'PENDING',
@@ -104,8 +117,22 @@ export async function POST(request) {
         });
 
         if (existing) {
-          totalSkipped++;
-          continue;
+          if (existing.status === 'PINNED') {
+            totalSkipped++;
+            continue;
+          } else {
+            // Reset schedule
+            await prisma.pinLog.update({
+              where: { id: existing.id },
+              data: {
+                status: 'PENDING',
+                scheduledAt: new Date(scheduleTime),
+              }
+            });
+            totalQueued++;
+            scheduleTime = new Date(scheduleTime.getTime() + PIN_INTERVAL_MINUTES * 60 * 1000);
+            continue;
+          }
         }
 
         await prisma.pinLog.create({
@@ -157,7 +184,7 @@ export async function PUT() {
       },
       include: { board: true },
       orderBy: { scheduledAt: 'asc' },
-      take: PINS_PER_BATCH,
+      take: account.pinsPerBatch || 1,
     });
 
     let pinned = 0;

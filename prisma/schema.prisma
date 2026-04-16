@@ -143,10 +143,14 @@ model PinterestAccount {
   accessToken   String   @db.Text
   refreshToken  String   @db.Text
   tokenExpiry   DateTime
-  scope         String   @default("pins:read,pins:write,boards:read,boards:write")
+  scope           String   @default("pins:read,pins:write,boards:read,boards:write")
 
-  boards        PinterestBoard[]
-  pinLogs       PinLog[]
+  // Queue Settings
+  pinsPerBatch    Int      @default(1)
+  intervalMinutes Int      @default(180)
+
+  boards          PinterestBoard[]
+  pinLogs         PinLog[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

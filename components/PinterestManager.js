@@ -14,6 +14,11 @@ export default function PinterestManager({ account, boards, categories, stats, r
   const [localStats, setLocalStats] = useState(stats);
   const [localPins, setLocalPins] = useState(recentPins);
 
+  // Settings state
+  const [pinsPerBatch, setPinsPerBatch] = useState(account?.pinsPerBatch || 1);
+  const [intervalMinutes, setIntervalMinutes] = useState(account?.intervalMinutes || 180);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
   // Modals state
   const [boardModal, setBoardModal] = useState({ isOpen: false, isEdit: false, id: null, name: '', description: '' });
   const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '', status: '', scheduledAt: '' });
@@ -95,6 +100,25 @@ export default function PinterestManager({ account, boards, categories, stats, r
     } catch (err) {
       showToast(err.message, true);
     }
+  };
+
+  // ── Settings ──
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/pinterest/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinsPerBatch, intervalMinutes }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      showToast('Queue settings saved successfully');
+    } catch (err) {
+      showToast(err.message, true);
+    }
+    setIsSavingSettings(false);
   };
 
   // ── Sync & Pin Processing ──
@@ -290,6 +314,35 @@ export default function PinterestManager({ account, boards, categories, stats, r
               </button>
               <button onClick={handleProcessNow} disabled={isProcessing} style={{ ...primaryBtnStyle, background: '#E60023' }}>
                 {isProcessing ? '⏳ Pinning...' : '🚀 Process Due Pins'}
+              </button>
+            </div>
+          </div>
+
+          {/* Settings Box */}
+          <div style={{ background: '#fafafa', border: '1px solid #eee', borderRadius: '12px', padding: '20px', marginBottom: '24px', display: 'flex', gap: '20px', alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#555', marginBottom: '6px' }}>Pins per Batch (Cron job)</label>
+              <input 
+                type="number" 
+                min="1" 
+                value={pinsPerBatch} 
+                onChange={(e) => setPinsPerBatch(e.target.value)} 
+                style={inputStyle} 
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#555', marginBottom: '6px' }}>Interval Between Pins (Minutes)</label>
+              <input 
+                type="number" 
+                min="0" 
+                value={intervalMinutes} 
+                onChange={(e) => setIntervalMinutes(e.target.value)} 
+                style={inputStyle} 
+              />
+            </div>
+            <div>
+              <button onClick={handleSaveSettings} disabled={isSavingSettings} style={secondaryBtnStyle}>
+                {isSavingSettings ? '⏳ Saving...' : '💾 Save Settings'}
               </button>
             </div>
           </div>
