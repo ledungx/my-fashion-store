@@ -247,7 +247,7 @@ export async function GET() {
     ]);
 
     const recentPins = await prisma.pinLog.findMany({
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 50,
       include: { board: true },
     });

@@ -41,7 +41,7 @@ export default async function AdminPinterestPage() {
   ]);
 
   const recentPins = await prisma.pinLog.findMany({
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
     take: 30,
     include: { board: true },
   });

@@ -21,7 +21,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
 
   // Modals state
   const [boardModal, setBoardModal] = useState({ isOpen: false, isEdit: false, id: null, name: '', description: '' });
-  const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '', status: '', scheduledAt: '' });
+  const [pinModal, setPinModal] = useState({ isOpen: false, id: null, title: '', description: '', destinationUrl: '', status: '', scheduledAt: '', boardId: '' });
   
   const showToast = (text, isError = false) => {
     setMessage(`${isError ? '❌' : '✅'} ${text}`);
@@ -169,7 +169,8 @@ export default function PinterestManager({ account, boards, categories, stats, r
           title: pinModal.title, 
           description: pinModal.description, 
           destinationUrl: pinModal.destinationUrl,
-          scheduledAt: pinModal.scheduledAt 
+          scheduledAt: pinModal.scheduledAt,
+          boardId: pinModal.boardId 
         }),
       });
       const data = await res.json();
@@ -360,6 +361,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
                 <tr style={{ borderBottom: '2px solid #f0f0f0' }}>
                   <th style={thStyle}>Image</th>
                   <th style={thStyle}>Details</th>
+                  <th style={{ ...thStyle, width: '140px' }}>Board</th>
                   <th style={{ ...thStyle, width: '120px' }}>Status</th>
                   <th style={{ ...thStyle, width: '130px' }}>Scheduled</th>
                   <th style={{ ...thStyle, width: '100px', textAlign: 'center' }}>Actions</th>
@@ -379,6 +381,9 @@ export default function PinterestManager({ account, boards, categories, stats, r
                         {pin.destinationUrl}
                       </div>
                     </td>
+                    <td style={{ ...tdStyle, fontSize: '13px', color: '#555' }}>
+                      {pin.board?.name || '—'}
+                    </td>
                     <td style={tdStyle}>
                       <span style={{
                         padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
@@ -396,7 +401,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
                         <button onClick={() => {
                           // Format date for datetime-local input
                           const scheduledVal = pin.scheduledAt ? new Date(pin.scheduledAt).toISOString().slice(0, 16) : '';
-                          setPinModal({ isOpen: true, id: pin.id, title: pin.title, description: pin.description, destinationUrl: pin.destinationUrl, status: pin.status, scheduledAt: scheduledVal });
+                          setPinModal({ isOpen: true, id: pin.id, title: pin.title, description: pin.description, destinationUrl: pin.destinationUrl, status: pin.status, scheduledAt: scheduledVal, boardId: pin.boardId || '' });
                         }} style={iconBtnStyle} title="Edit Pin">✎</button>
                         <button onClick={() => handleDeletePin(pin.id)} style={{...iconBtnStyle, color: '#ef4444', marginLeft: '5px'}} title="Delete Pin">🗑</button>
                       </>
@@ -445,6 +450,15 @@ export default function PinterestManager({ account, boards, categories, stats, r
             <div style={formGroup}>
               <label>Link (URL)</label>
               <input type="text" value={pinModal.destinationUrl} onChange={e => setPinModal({...pinModal, destinationUrl: e.target.value})} style={inputStyle} />
+            </div>
+            <div style={formGroup}>
+              <label>Board</label>
+              <select value={pinModal.boardId} onChange={e => setPinModal({...pinModal, boardId: e.target.value})} style={inputStyle}>
+                <option value="">— Select a board —</option>
+                {localBoards.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
             </div>
             {pinModal.status !== 'PINNED' && (
               <div style={formGroup}>

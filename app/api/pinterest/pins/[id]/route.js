@@ -23,11 +23,17 @@ export async function PATCH(request, context) {
   // id here represents the PinLog ID
   const { id } = await context.params;
   try {
-    const { title, description, destinationUrl, scheduledAt } = await request.json();
+    const { title, description, destinationUrl, scheduledAt, boardId } = await request.json();
 
     const pinLog = await prisma.pinLog.findUnique({ where: { id } });
     if (!pinLog) {
       return NextResponse.json({ error: 'Pin record not found' }, { status: 404 });
+    }
+
+    let pinterestBoardId;
+    if (boardId && boardId !== pinLog.boardId) {
+       const board = await prisma.pinterestBoard.findUnique({ where: { id: boardId }});
+       if (board) pinterestBoardId = board.boardId;
     }
 
     if (pinLog.pinId) {
@@ -42,13 +48,17 @@ export async function PATCH(request, context) {
       await updatePin(accessToken, pinLog.pinId, { 
         title, 
         description, 
-        link: destinationUrl 
+        link: destinationUrl,
+        boardId: pinterestBoardId // Pass the remote Pinterest board ID if we are switching boards
       });
     }
 
     const dataToUpdate = { title, description, destinationUrl };
     if (scheduledAt) {
       dataToUpdate.scheduledAt = new Date(scheduledAt);
+    }
+    if (boardId) {
+      dataToUpdate.boardId = boardId;
     }
 
     // Update in DB
