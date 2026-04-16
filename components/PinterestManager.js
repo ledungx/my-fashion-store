@@ -420,6 +420,7 @@ export default function PinterestManager({ account, boards, categories, stats, r
                   <th style={{ ...thStyle, width: '140px' }}>Board</th>
                   <th style={{ ...thStyle, width: '120px' }}>Status</th>
                   <th style={{ ...thStyle, width: '130px' }}>Scheduled</th>
+                  <th style={{ ...thStyle, width: '100px' }}>Pin URL</th>
                   <th style={{ ...thStyle, width: '100px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -451,6 +452,13 @@ export default function PinterestManager({ account, boards, categories, stats, r
                     </td>
                     <td style={{ ...tdStyle, fontSize: '12px', color: '#888' }}>
                       {pin.scheduledAt ? new Date(pin.scheduledAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: '13px' }}>
+                      {pin.pinId ? (
+                        <a href={`https://pinterest.com/pin/${pin.pinId}`} target="_blank" rel="noreferrer" style={{ color: '#E60023', fontWeight: 'bold', textDecoration: 'none' }}>
+                          View 🔗
+                        </a>
+                      ) : '—'}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
                       <>
